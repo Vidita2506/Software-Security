@@ -5,7 +5,7 @@
 #include <stdlib.h> 
 #include <netinet/in.h> 
 #include <string.h> 
-#define PORT 80
+#define PORT 80 
 int main(int argc, char const *argv[]) 
 { 
     int server_fd, new_socket, valread; 
@@ -39,21 +39,41 @@ int main(int argc, char const *argv[])
     { 
         perror("bind failed"); 
         exit(EXIT_FAILURE); 
-    } 
-    if (listen(server_fd, 3) < 0) 
-    { 
+    }
+
+    // Privilege separation
+    pid_t child_process = fork();
+    if (child_process < 0) 
+    {
+        perror("Failed to fork the process");
+        exit(EXIT_FAILURE);
+    } else if (child_process == 0) 
+    {
+      // Privilege dropped to nobody user    
+      if(setuid(65534) < 0){
+         perror("Failed to drop privilege");
+         exit(EXIT_FAILURE);
+      }
+      if (listen(server_fd, 3) < 0) 
+      { 
         perror("listen"); 
         exit(EXIT_FAILURE); 
-    } 
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address,  
+      } 
+      if ((new_socket = accept(server_fd, (struct sockaddr *)&address,  
                        (socklen_t*)&addrlen))<0) 
-    { 
+      { 
         perror("accept"); 
         exit(EXIT_FAILURE); 
-    } 
-    valread = read( new_socket , buffer, 1024); 
-    printf("%s\n",buffer ); 
-    send(new_socket , hello , strlen(hello) , 0 ); 
-    printf("Hello message sent\n"); 
+      } 
+      valread = read( new_socket , buffer, 1024); 
+      printf("%s\n",buffer ); 
+      send(new_socket , hello , strlen(hello) , 0 ); 
+      printf("Hello message sent\n"); 
+    } else 
+    {
+        // Wait to finish      
+       int status = 0;
+       while ((wait(&status)) > 0);
+    }
     return 0; 
 } 
