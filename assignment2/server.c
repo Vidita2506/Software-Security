@@ -12,9 +12,11 @@ int main(int argc, char const *argv[])
     struct sockaddr_in address; 
     int opt = 1; 
     int addrlen = sizeof(address); 
-    char buffer[1024] = {0}; 
-    char *hello = "Hello from server"; 
-       
+    char buffer[1024] = {0};
+    char *hello = "Hello from server";
+    void do_execvp(int server_fd);
+
+    if (argc == 1) {   
     // Creating socket file descriptor 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) 
     { 
@@ -49,31 +51,59 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     } else if (child_process == 0) 
     {
+      do_execvp(server_fd);
+    }
+
+    else 
+    {
+      // Wait to finish
+       int status = 0;
+       while ((wait(&status)) > 0);
+    }
+    }
+
+    /* This will be executed when the server is re-exec using execvp 
+      with an argument having the server socket file descriptor
+    */ 
+    else 
+    {
       // Privilege dropped to nobody user    
       if(setuid(65534) < 0){
          perror("Failed to drop privilege");
          exit(EXIT_FAILURE);
       }
-      if (listen(server_fd, 3) < 0) 
+      const char *server_fd_str = argv[1];
+      server_fd = atoi(server_fd_str);
+
+      if (listen(server_fd, 3) < 0)
       { 
         perror("listen"); 
-        exit(EXIT_FAILURE); 
+        exit(EXIT_FAILURE);
       } 
       if ((new_socket = accept(server_fd, (struct sockaddr *)&address,  
-                       (socklen_t*)&addrlen))<0) 
+                       (socklen_t*)&addrlen))<0)
       { 
         perror("accept"); 
         exit(EXIT_FAILURE); 
-      } 
+      }
       valread = read( new_socket , buffer, 1024); 
       printf("%s\n",buffer ); 
       send(new_socket , hello , strlen(hello) , 0 ); 
       printf("Hello message sent\n"); 
-    } else 
-    {
-        // Wait to finish      
-       int status = 0;
-       while ((wait(&status)) > 0);
-    }
+    } 
     return 0; 
-} 
+}
+
+// Runs execvp
+void do_execvp(int server_fd)
+{
+  char server_fd_str[12];
+  sprintf(server_fd_str, "%d", server_fd);
+  char *args[] = {"./server", server_fd_str, NULL};
+  if (execvp(args[0], args) < 0)
+  {
+    perror("exec");
+    exit(EXIT_FAILURE);
+  };
+}
+
